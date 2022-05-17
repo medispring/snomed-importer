@@ -102,12 +102,17 @@ class ImporterApplication : CommandLineRunner {
         }
 
         val snomed = toBeUpdated.flatMap { it.qualifiedLinks.entries.filter { (key, value) -> isSnomed(key, value) }.flatMap { s -> s.value } }.toSortedSet()
-        val existingSnomeds = snomed.toList().takeIf { it.isNotEmpty() }?.let { ids -> codeApi.getCodes(ListOfIdsDto(ids)).map { it.id } } ?: emptyList()
+        val existingSnomeds = snomed.toList().takeIf { it.isNotEmpty() }?.let { ids -> codeApi.getCodes(ListOfIdsDto(ids)).map { it.id to it }.toMap() } ?: emptyMap()
 
-        snomed.filter { !existingSnomeds.contains(it) }.forEach {
-            val (type, code, version) = it.split("|")
-            val label = terms[code] ?: emptyMap()
-            codeApi.createCode(CodeDto(id = it, type = type, code = code, version = version, label = label.entries.associate { (k, v) -> k to v.first() }, searchTerms = label.entries.associate { (k, v) -> k to v.toSet() }))
+        snomed.filter { !existingSnomeds.containsKey(it) }.forEach {
+            val codeDto = makeCode(it, terms)
+            codeApi.createCode(codeDto)
+        }
+
+        snomed.filter { existingSnomeds.containsKey(it) }.forEach {
+            val existing = existingSnomeds[it]!!
+            val codeDto = makeCode(it, terms)
+            codeApi.modifyCode(codeDto.copy(rev = existing.rev))
         }
 
         toBeUpdated.forEach {
@@ -117,6 +122,22 @@ class ImporterApplication : CommandLineRunner {
         ibuis.nextKeyPair?.let {
             addSnomedToIbui(codeApi, objectMapper.writeValueAsString(it.startKey), it.startKeyDocId, snomedMappings, terms)
         }
+    }
+
+    private fun makeCode(
+        id: String,
+        terms: Map<String, Map<String, List<String>>>
+    ): CodeDto {
+        val (type, code, version) = id.split("|")
+        val label = terms[code] ?: emptyMap()
+        val codeDto = CodeDto(
+            id = id,
+            type = type,
+            code = code,
+            version = version,
+            label = label.entries.associate { (k, v) -> k to v.first() },
+            searchTerms = label.entries.associate { (k, v) -> k to v.toSet() })
+        return codeDto
     }
 
     private fun isSnomed(key: String, value: List<String>) = listOf(
