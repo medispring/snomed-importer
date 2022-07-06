@@ -92,7 +92,7 @@ class ImporterApplication : CommandLineRunner {
         val toBeUpdated = ibuis.rows.mapNotNull { code ->
             val toBeAdded = snomedMappings[code.code] ?: emptyList()
             val snomeds = code.qualifiedLinks.entries.filter { (key, value) -> isSnomed(key, value) }
-            val missing = toBeAdded.filter { s -> !snomeds.any { (_, v) -> v.contains("|$s|") } }
+            val missing = toBeAdded.filter { s -> !snomeds.any { (_, v) -> v.contains("|$s") } }
             if (missing.isNotEmpty()) {
                 code.copy(
                     qualifiedLinks = code.qualifiedLinks + ("narrower" to (
