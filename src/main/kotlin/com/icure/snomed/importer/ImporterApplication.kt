@@ -41,9 +41,9 @@ class ImporterApplication : CommandLineRunner {
     override fun run(args: Array<String>) {
         val snomedMappings: Map<String, List<String>> = Path(args[0]).reader(Charsets.UTF_8).readLines()
             .fold(persistentHashMapOf<String, PersistentList<String>>()) { map, it ->
-                val (_, _, active, _, _, referencedComponentId, mapTarget) = it.split("\t")
+                val (_, effectiveTime, active, _, _, referencedComponentId, mapTarget) = it.split("\t")
                 if (active == "1") {
-                    map.put(referencedComponentId, (map[referencedComponentId] ?: persistentListOf()).add(mapTarget))
+                    map.put(referencedComponentId, (map[referencedComponentId] ?: persistentListOf()).add("$mapTarget|$effectiveTime"))
                 } else map
             }
         val acceptabilityMapping =
@@ -96,7 +96,7 @@ class ImporterApplication : CommandLineRunner {
             if (missing.isNotEmpty()) {
                 code.copy(
                     qualifiedLinks = code.qualifiedLinks + ("narrower" to (
-                            (code.qualifiedLinks["narrower"]) ?: emptyList()) + missing.map { "SNOMED|$it|20220315" })
+                            (code.qualifiedLinks["narrower"]) ?: emptyList()) + missing.map { "SNOMED|$it" })
                 )
             } else null
         }
