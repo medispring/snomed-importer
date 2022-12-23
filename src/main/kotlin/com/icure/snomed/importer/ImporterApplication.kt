@@ -52,8 +52,7 @@ class ImporterApplication : CommandLineRunner {
                 if (active == "1") {
                     map.put(
                         referencedComponentId, when (acceptabilityId) {
-                            "900000000000549004" -> 1
-                            "900000000000548007" -> 2
+                            "900000000000548007" -> 1
                             else -> 0
                         }
                     )
@@ -73,7 +72,8 @@ class ImporterApplication : CommandLineRunner {
 
         runBlocking {
             val codeApi =
-                CodeApi(basePath = "http://127.0.0.1:16043", authHeader = basicAuth(userName, password))
+//               CodeApi(basePath = "http://127.0.0.1:16043", authHeader = basicAuth(userName, password))
+                    CodeApi(basePath = "https://kraken.svc.icure.cloud", authHeader = basicAuth(userName, password))
             val startKey = null
             val startDocumentId = null
             addSnomedToIbui(codeApi, startKey, startDocumentId, snomedMappings, terms)
@@ -90,13 +90,15 @@ class ImporterApplication : CommandLineRunner {
         val ibuis = codeApi.findCodesByType("be", "BE-THESAURUS", null, null, startKey, startDocumentId, 1000)
 
         val toBeUpdated = ibuis.rows.mapNotNull { code ->
+            code.qualifiedLinks.entries.apply { null } //this resets the QL
             val toBeAdded = snomedMappings[code.code] ?: emptyList()
-            val snomeds = code.qualifiedLinks.entries.filter { (key, value) -> isSnomed(key, value) }
+            //val snomeds = code.qualifiedLinks.entries.filter { (key, value) -> isSnomed(key, value) }
+            val snomeds = code.qualifiedLinks.entries.filter { (key, value) -> false && isSnomed(key, value) } //re import all snomeds
             val missing = toBeAdded.filter { s -> !snomeds.any { (_, v) -> v.contains("|$s") } }
             if (missing.isNotEmpty()) {
                 code.copy(
                     qualifiedLinks = code.qualifiedLinks + ("narrower" to (
-                            (code.qualifiedLinks["narrower"]) ?: emptyList()) + missing.map { "SNOMED|$it" })
+                            (code.qualifiedLinks["narrower"]?.filter{ ql -> false }) ?: emptyList()) + missing.map { "SNOMED|$it" })
                 )
             } else null
         }
@@ -116,6 +118,10 @@ class ImporterApplication : CommandLineRunner {
         }
 
         toBeUpdated.forEach {
+//            //it.qualifiedLinks["narrower"] = it.qualifiedLinks["narrower"]?.distinct()
+//            it.copy(
+//                qualifiedLinks = it.qualifiedLinks.
+//            )
             codeApi.modifyCode(it)
         }
 
